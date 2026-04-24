@@ -7,6 +7,7 @@ MEMORY
 {
     RAM (rwx) : ORIGIN = 0x80001000, LENGTH = 128K
 }
+
 SECTIONS
 {
     .text :
@@ -35,4 +36,5 @@ SECTIONS
     {
         *(.comment)
     }
+    _stack_top = ORIGIN(RAM) + LENGTH(RAM);
 }

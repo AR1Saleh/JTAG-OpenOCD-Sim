@@ -1,20 +1,45 @@
-all:
-	riscv32-unknown-elf-gcc -g -O0 \
-        -march=rv32imac -mabi=ilp32 \
-        -nostdlib -nostartfiles \
-        -T linker.ld \
-        start.s main.c \
-        -o main.elf
-	#Generate disassembly (.s)
-	riscv32-unknown-elf-objdump -d -S -M no-aliases main.elf > main.s
-	#Generate Intel HEX file (.hex)
-	riscv32-unknown-elf-objcopy -O ihex main.elf main.hex
+CC = riscv32-unknown-elf-gcc
+OBJDUMP = riscv32-unknown-elf-objdump
+OBJCOPY = riscv32-unknown-elf-objcopy
+GDB = gdb-multiarch
+QEMU = qemu-system-riscv32
+SIZE = riscv32-unknown-elf-size
 
-qemu: main.elf
+CFLAGS = -g -O0 -march=rv32imac -mabi=ilp32 -nostdlib -nostartfiles
+LDFLAGS = -T linker.ld
+
+SRC = start.s main.c
+ELF = main.elf
+HEX = main.hex
+ASM = main.s
+
+.PHONY: all qemu run gdb clean size
+
+all: $(ELF) $(ASM) $(HEX)
+
+$(ELF): $(SRC) linker.ld
+	$(CC) $(CFLAGS) $(LDFLAGS) $(SRC) -o $@
+
+$(ASM): $(ELF)
+	$(OBJDUMP) -d -S -M no-aliases $< > $@
+
+$(HEX): $(ELF)
+	$(OBJCOPY) -O ihex $< $@
+
+qemu: $(ELF)
 	@echo "Ctrl-A C for QEMU console, then quit to exit"
-	qemu-system-riscv32 -nographic -serial mon:stdio -machine virt -s -S -bios main.elf
-gdb: main.elf
+	$(QEMU) -nographic -serial mon:stdio -machine virt -s -S -bios $(ELF)
+
+run: $(ELF)
+	@echo "Running QEMU (no gdb) — Ctrl-A C for console"
+	$(QEMU) -nographic -serial mon:stdio -machine virt -bios $(ELF)
+
+gdb: $(ELF)
 	@echo "Ctrl-A C for QEMU console, then quit to exit"
-	gdb-multiarch main.elf -q -ex "set arch riscv:rv32" -ex "target remote localhost:1234" -ex "b _start" -ex "c" -ex "s"
+	$(GDB) $(ELF) -q -ex "set arch riscv:rv32" -ex "target remote localhost:1234" -ex "b _start" -ex "c" -ex "s"
+
+size: $(ELF)
+	@if command -v $(SIZE) >/dev/null 2>&1; then $(SIZE) $(ELF); else echo "$(SIZE) not found"; fi
+
 clean:
-	rm -f main.elf main.s main.hex
+	rm -f $(ELF) $(ASM) $(HEX)
